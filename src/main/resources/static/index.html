@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LangChain4j AI 助手</title>
+    <meta name="description" content="基于 LangChain4j 和 Ollama 的智能对话助手">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --primary-light: rgba(99, 102, 241, 0.1);
+            --secondary: #8b5cf6;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --bg-primary: #0f0f23;
+            --bg-secondary: #1a1a2e;
+            --bg-tertiary: #16213e;
+            --bg-card: rgba(26, 26, 46, 0.8);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: rgba(148, 163, 184, 0.1);
+            --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+            --gradient-bg: linear-gradient(180deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--gradient-bg);
+            min-height: 100vh;
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        /* 背景动画粒子效果 */
+        .bg-particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--primary);
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: float 15s infinite ease-in-out;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(100vh) scale(0);
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 0.3;
+            }
+
+            90% {
+                opacity: 0.3;
+            }
+
+            100% {
+                transform: translateY(-100vh) scale(1);
+                opacity: 0;
+            }
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 24px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header 区域 */
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+            padding: 32px;
+            background: var(--bg-card);
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--gradient-primary);
+        }
+
+        .logo {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 16px;
+            background: var(--gradient-primary);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
+            animation: pulse-glow 2s infinite;
+        }
+
+        @keyframes pulse-glow {
+
+            0%,
+            100% {
+                box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 8px 48px rgba(99, 102, 241, 0.5);
+            }
+        }
+
+        .header-title {
+            font-size: 32px;
+            font-weight: 700;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .header-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* 状态指示器 */
+        .status-bar {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            transition: all 0.3s ease;
+        }
+
+        .status-dot.online {
+            background: var(--success);
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.6);
+        }
+
+        .status-dot.offline {
+            background: var(--danger);
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
+        }
+
+        .status-dot.checking {
+            background: var(--warning);
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        /* 聊天容器 */
+        .chat-container {
+            flex: 1;
+            background: var(--bg-card);
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            backdrop-filter: blur(20px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* 欢迎消息 */
+        .welcome-message {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--text-secondary);
+        }
+
+        .welcome-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.6;
+        }
+
+        .welcome-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .welcome-tips {
+            margin-top: 24px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .tip-card {
+            padding: 12px 20px;
+            background: var(--primary-light);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 12px;
+            font-size: 13px;
+            color: var(--primary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tip-card:hover {
+            background: rgba(99, 102, 241, 0.2);
+            transform: translateY(-2px);
+        }
+
+        /* 消息样式 */
+        .message {
+            margin-bottom: 20px;
+            max-width: 85%;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .user-message {
+            margin-left: auto;
+        }
+
+        .ai-message {
+            margin-right: auto;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .message-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .user-message .message-avatar {
+            background: var(--gradient-primary);
+        }
+
+        .ai-message .message-avatar {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+
+        .message-role {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .message-content {
+            padding: 16px 20px;
+            border-radius: 16px;
+            font-size: 15px;
+            line-height: 1.7;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .user-message .message-content {
+            background: var(--gradient-primary);
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+
+        .ai-message .message-content {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-bottom-left-radius: 4px;
+        }
+
+        .error-message .message-content {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+        }
+
+        /* 打字指示器 */
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 16px 20px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+
+        .typing-dot:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+
+            0%,
+            60%,
+            100% {
+                transform: translateY(0);
+                opacity: 0.4;
+            }
+
+            30% {
+                transform: translateY(-8px);
+                opacity: 1;
+            }
+        }
+
+        /* 输入区域 */
+        .chat-input {
+            padding: 20px 24px;
+            border-top: 1px solid var(--border);
+            background: rgba(15, 15, 35, 0.5);
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .input-container {
+            flex: 1;
+            position: relative;
+        }
+
+        #message-input {
+            width: 100%;
+            padding: 16px 20px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            font-size: 15px;
+            font-family: inherit;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            outline: none;
+            resize: none;
+            min-height: 56px;
+            max-height: 200px;
+            transition: all 0.2s ease;
+        }
+
+        #message-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        #message-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .char-counter {
+            position: absolute;
+            right: 16px;
+            bottom: 8px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* 按钮 */
+        .btn {
+            padding: 16px 24px;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .send-btn {
+            background: var(--gradient-primary);
+            color: #fff;
+            min-width: 100px;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
+        }
+
+        .send-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .clear-btn {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
+        .clear-btn:hover {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        /* Loading 动画 */
+        .loading-spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+
+            .header {
+                padding: 24px;
+                border-radius: 16px;
+            }
+
+            .header-title {
+                font-size: 24px;
+            }
+
+            .status-bar {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .chat-container {
+                border-radius: 16px;
+            }
+
+            .message {
+                max-width: 92%;
+            }
+
+            .welcome-tips {
+                flex-direction: column;
+            }
+
+            .tip-card {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 背景粒子 -->
+    <div class="bg-particles" id="particles"></div>
+
+    <div class="container">
+        <div class="header">
+            <div class="logo">🤖</div>
+            <h1 class="header-title">LangChain4j AI 助手</h1>
+            <p class="header-subtitle">基于 Ollama 本地模型的智能对话助手</p>
+            <div class="status-bar">
+                <div class="status-item">
+                    <span class="status-dot checking" id="backend-status"></span>
+                    <span id="backend-status-text">检查后端...</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-dot checking" id="model-status"></span>
+                    <span id="model-status-text">检查模型...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-container">
+            <div class="chat-messages" id="chat-messages">
+                <div class="welcome-message" id="welcome">
+                    <div class="welcome-icon">💬</div>
+                    <div class="welcome-title">欢迎使用 LangChain4j AI 助手</div>
+                    <p>请输入您的问题，我会尽力为您解答</p>
+                    <div class="welcome-tips">
+                        <div class="tip-card" onclick="setInput('你好，请介绍一下自己')">👋 你好，请介绍一下自己</div>
+                        <div class="tip-card" onclick="setInput('什么是 LangChain4j？')">📚 什么是 LangChain4j？</div>
+                        <div class="tip-card" onclick="setInput('请给我讲一个笑话')">😄 请给我讲一个笑话</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input">
+                <div class="input-wrapper">
+                    <div class="input-container">
+                        <textarea id="message-input" placeholder="请输入您的问题... (按 Enter 发送，Shift+Enter 换行)"
+                            rows="1"></textarea>
+                        <span class="char-counter"><span id="char-count">0</span>/2000</span>
+                    </div>
+                    <button class="btn send-btn" id="send-btn">
+                        <span id="send-btn-text">发送</span>
+                    </button>
+                    <button class="btn clear-btn" id="clear-btn">清空</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===================== API 配置 =====================
+        const API_BASE = window.location.origin;
+        const CHAT_API = `http://localhost:8080/api/chat`;
+        // ===================== 配置结束 =====================
+
+        // DOM 元素
+        const chatMessages = document.getElementById('chat-messages');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const sendBtnText = document.getElementById('send-btn-text');
+        const clearBtn = document.getElementById('clear-btn');
+        const charCount = document.getElementById('char-count');
+        const welcome = document.getElementById('welcome');
+        const backendStatus = document.getElementById('backend-status');
+        const backendStatusText = document.getElementById('backend-status-text');
+        const modelStatus = document.getElementById('model-status');
+        const modelStatusText = document.getElementById('model-status-text');
+
+        // 状态
+        let isLoading = false;
+        let messageHistory = [];
+
+        // 初始化
+        window.onload = () => {
+            createParticles();
+            checkBackendStatus();
+            bindEvents();
+            autoResizeTextarea();
+        };
+
+        // 创建背景粒子
+        function createParticles() {
+            const container = document.getElementById('particles');
+            for (let i = 0; i < 30; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 15 + 's';
+                particle.style.animationDuration = (10 + Math.random() * 10) + 's';
+                container.appendChild(particle);
+            }
+        }
+
+        // 绑定事件
+        function bindEvents() {
+            sendBtn.addEventListener('click', sendMessage);
+            clearBtn.addEventListener('click', clearMessages);
+
+            messageInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            messageInput.addEventListener('input', () => {
+                autoResizeTextarea();
+                updateCharCount();
+            });
+        }
+
+        // 自动调整文本框高度
+        function autoResizeTextarea() {
+            messageInput.style.height = 'auto';
+            messageInput.style.height = Math.min(messageInput.scrollHeight, 200) + 'px';
+        }
+
+        // 更新字符计数
+        function updateCharCount() {
+            const count = messageInput.value.length;
+            charCount.textContent = count;
+            charCount.style.color = count > 1800 ? '#ef4444' : '';
+        }
+
+        // 检查后端状态
+        async function checkBackendStatus() {
+            try {
+                // 简单调用 API 测试连接（发送一个测试请求）
+                const response = await fetch('http://localhost:8080/api/ping?message=ping', {
+                    method: 'GET',
+                    timeout: 5000,
+                });
+                // 校验响应状态码（2xx 才表示成功）
+                if (!response.ok) {
+                    throw new Error(`后端返回异常状态码: ${response.status}`);
+                }
+                // Spring Boot 后端在线
+                backendStatus.className = 'status-dot online';
+                backendStatusText.textContent = 'Spring Boot 后端在线';
+                modelStatus.className = 'status-dot online';
+                modelStatusText.textContent = 'Ollama 模型就绪';
+
+            } catch (error) {
+                console.error('后端检查失败:', error);
+                backendStatus.className = 'status-dot offline';
+                backendStatusText.textContent = '后端连接失败';
+                modelStatus.className = 'status-dot offline';
+                modelStatusText.textContent = '无法检测模型';
+            }
+        }
+
+        // 设置输入内容（点击提示卡片）
+        function setInput(text) {
+            messageInput.value = text;
+            messageInput.focus();
+            updateCharCount();
+            autoResizeTextarea();
+        }
+
+        // 发送消息
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message || isLoading) return;
+
+            // 隐藏欢迎消息
+            if (welcome) {
+                welcome.style.display = 'none';
+            }
+
+            // 添加用户消息
+            addMessageToUI('user', message);
+            messageInput.value = '';
+            updateCharCount();
+            autoResizeTextarea();
+
+            // 设置加载状态
+            setLoading(true);
+
+            // 添加 AI 消息占位（带打字指示器）
+            const aiMessageEl = addMessageToUI('ai', '', true);
+
+            try {
+                // 调用后端 API
+                const response = await fetch(CHAT_API, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        // 给消息加上双引号，解决部分模型在无引号时返回空内容的问题
+                        message: `"${message}"`
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`请求失败: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                // 更新 AI 消息内容
+                updateAIMessage(aiMessageEl, data.response || '抱歉，没有收到有效回复');
+
+            } catch (error) {
+                console.error('发送消息失败:', error);
+                updateAIMessage(aiMessageEl, `请求失败: ${error.message}`, true);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // 添加消息到 UI
+        function addMessageToUI(role, content, isTyping = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role === 'user' ? 'user-message' : 'ai-message'}`;
+
+            const avatar = role === 'user' ? '👤' : '🤖';
+            const roleName = role === 'user' ? '你' : 'AI 助手';
+
+            let contentHTML = '';
+            if (isTyping) {
+                contentHTML = `
+                    <div class="typing-indicator">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                `;
+            } else {
+                contentHTML = `<div class="message-text">${escapeHtml(content)}</div>`;
+            }
+
+            messageDiv.innerHTML = `
+                <div class="message-header">
+                    <div class="message-avatar">${avatar}</div>
+                    <span class="message-role">${roleName}</span>
+                </div>
+                <div class="message-content">${contentHTML}</div>
+            `;
+
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+
+            return messageDiv;
+        }
+
+        // 更新 AI 消息
+        function updateAIMessage(messageEl, content, isError = false) {
+            const contentEl = messageEl.querySelector('.message-content');
+            contentEl.innerHTML = `<div class="message-text">${escapeHtml(content)}</div>`;
+
+            if (isError) {
+                messageEl.classList.add('error-message');
+            }
+
+            scrollToBottom();
+        }
+
+        // 设置加载状态
+        function setLoading(loading) {
+            isLoading = loading;
+            sendBtn.disabled = loading;
+
+            if (loading) {
+                sendBtnText.innerHTML = '<span class="loading-spinner"></span>';
+            } else {
+                sendBtnText.textContent = '发送';
+            }
+        }
+
+        // 清空消息
+        function clearMessages() {
+            chatMessages.innerHTML = '';
+            messageHistory = [];
+
+            // 重新显示欢迎消息
+            chatMessages.innerHTML = `
+                <div class="welcome-message" id="welcome">
+                    <div class="welcome-icon">💬</div>
+                    <div class="welcome-title">欢迎使用 LangChain4j AI 助手</div>
+                    <p>请输入您的问题，我会尽力为您解答</p>
+                    <div class="welcome-tips">
+                        <div class="tip-card" onclick="setInput('你好，请介绍一下自己')">👋 你好，请介绍一下自己</div>
+                        <div class="tip-card" onclick="setInput('什么是 LangChain4j？')">📚 什么是 LangChain4j？</div>
+                        <div class="tip-card" onclick="setInput('请给我讲一个笑话')">😄 请给我讲一个笑话</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 滚动到底部
+        function scrollToBottom() {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // HTML 转义
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+
+</html>

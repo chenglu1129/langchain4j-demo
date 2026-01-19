@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: langchain4j-demo
+
+# LangChain4j Ollama 配置
+langchain4j:
+  ollama:
+    chat-model:
+      base-url: http://localhost:11434
+      model-name: Qwen2.5-VL-7B-Instruct-local:latest
+      temperature: 0.7
+      timeout: PT60S
+    streaming-chat-model:
+      base-url: http://localhost:11434
+      model-name: Qwen2.5-VL-7B-Instruct-local:latest
+      temperature: 0.7
+      timeout: PT60S
+
+server:
+  port: 8080
