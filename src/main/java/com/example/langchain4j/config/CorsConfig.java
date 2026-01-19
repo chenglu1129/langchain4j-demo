@@ -14,7 +14,7 @@ public class CorsConfig {
         // 1. 创建CORS配置对象
         CorsConfiguration config = new CorsConfiguration();
         // 允许的源（前端地址），* 表示允许所有源（开发环境可用，生产环境建议指定具体域名）
-        config.addAllowedOrigin("http://localhost:63342");
+        config.addAllowedOrigin("*");
         // 允许的请求头
         config.addAllowedHeader("*");
         // 允许的请求方法（GET、POST、PUT等）

@@ -43,6 +43,13 @@
             <version>${langchain4j.version}</version>
         </dependency>
 
+        <!-- 嵌入模型 (本地运行，无需 Ollama) -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-embeddings-bge-small-zh-q</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+
         <!-- Spring Boot Starter for LangChain4j (可选，提供自动配置) -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
