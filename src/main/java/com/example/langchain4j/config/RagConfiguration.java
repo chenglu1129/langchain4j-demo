@@ -13,13 +13,14 @@ import dev.langchain4j.rag.content.retriever.EmbeddingStoreContentRetriever;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.EmbeddingStoreIngestor;
-import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
+import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -33,28 +34,30 @@ public class RagConfiguration {
         return new BgeSmallZhQuantizedEmbeddingModel();
     }
 
-    // 向量数据持久化文件路径
-    private static final String EMBEDDING_STORE_FILE = "data/embedding-store.json";
+    // 向量数据是否已导入的标记文件
+    private static final String INGESTION_MARKER_FILE = "data/.chroma_ingested";
 
     @Bean
     EmbeddingStore<TextSegment> embeddingStore(EmbeddingModel embeddingModel) throws IOException, URISyntaxException {
-        Path storePath = Paths.get(EMBEDDING_STORE_FILE);
+        // 配置 Chroma 向量数据库连接
+        EmbeddingStore<TextSegment> embeddingStore = ChromaEmbeddingStore.builder()
+                .baseUrl("http://localhost:8000")
+                .collectionName("default")
+                .logRequests(true)
+                .logResponses(true)
+                .build();
 
-        // 1. 检查是否存在已持久化的向量数据
-        if (java.nio.file.Files.exists(storePath)) {
-            System.out.println("从文件加载已有的向量数据: " + storePath.toAbsolutePath());
-            long startTime = System.currentTimeMillis();
+        Path markerPath = Paths.get(INGESTION_MARKER_FILE);
 
-            InMemoryEmbeddingStore<TextSegment> embeddingStore = InMemoryEmbeddingStore.fromFile(storePath);
-
-            long duration = System.currentTimeMillis() - startTime;
-            System.out.println("向量数据加载完成，耗时: " + duration + "ms");
+        // 1. 检查标记文件，如果存在则跳过导入
+        if (Files.exists(markerPath)) {
+            System.out.println("检测到标记文件: " + markerPath.toAbsolutePath());
+            System.out.println("假设 Chroma 已包含向量数据，跳过导入。");
             return embeddingStore;
         }
 
-        // 2. 如果没有持久化数据，创建新的向量存储
-        System.out.println("未找到已有的向量数据，开始新建...");
-        InMemoryEmbeddingStore<TextSegment> embeddingStore = new InMemoryEmbeddingStore<>();
+        // 2. 如果没有标记文件，开始导入数据
+        System.out.println("未找到标记文件，准备导入数据到 Chroma...");
 
         // 3. 加载文档
         URL url = RagConfiguration.class.getClassLoader().getResource("documents");
@@ -90,12 +93,12 @@ public class RagConfiguration {
         ingestor.ingest(documents);
 
         long duration = System.currentTimeMillis() - startTime;
-        System.out.println("文档向量化完成，耗时: " + duration + "ms");
+        System.out.println("文档向量化并导入 Chroma 完成，耗时: " + duration + "ms");
 
-        // 5. 持久化向量数据到文件
-        java.nio.file.Files.createDirectories(storePath.getParent());
-        embeddingStore.serializeToFile(storePath);
-        System.out.println("向量数据已持久化到: " + storePath.toAbsolutePath());
+        // 5. 创建标记文件
+        Files.createDirectories(markerPath.getParent());
+        Files.createFile(markerPath);
+        System.out.println("已创建标记文件: " + markerPath.toAbsolutePath());
 
         return embeddingStore;
     }

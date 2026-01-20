@@ -61,3 +61,6 @@ Desktop.ini
 
 # Ollama data (if run locally in project, though usually outside)
 ollama_data/
+/data/
+/Langchain4j/
+/chroma_data/

@@ -43,6 +43,30 @@
             <version>${langchain4j.version}</version>
         </dependency>
 
+        <!-- Chroma 向量数据库支持 -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-chroma</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+
+        <!-- Chroma 客户端所需的 Retrofit 和 Gson 依赖 (手动补全) -->
+        <dependency>
+            <groupId>com.squareup.retrofit2</groupId>
+            <artifactId>retrofit</artifactId>
+            <version>2.9.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.retrofit2</groupId>
+            <artifactId>converter-gson</artifactId>
+            <version>2.9.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.10.1</version>
+        </dependency>
+
         <!-- 嵌入模型 (本地运行，无需 Ollama) -->
         <dependency>
             <groupId>dev.langchain4j</groupId>

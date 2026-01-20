@@ -23,6 +23,23 @@ services:
       timeout: 10s
       retries: 3
 
+  chroma:
+    image: chromadb/chroma:0.5.11
+    container_name: langchain4j-chroma
+    volumes:
+      # 将容器内的 /chroma/chroma 目录挂载到当前目录下的 chroma_data，实现数据持久化
+      - ./chroma_data:/chroma/chroma
+    ports:
+      - "8000:8000"
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   ollama_data:
     name: ollama_data

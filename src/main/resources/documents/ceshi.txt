@@ -1,0 +1,8 @@
+ * LangChain4j 示例项目启动类
+ * 
+ * 本项目演示 LangChain4j 的核心特性：
+ * 1. 基础对话 - BasicChatExample
+ * 2. 流式输出 - StreamingChatExample
+ * 3. AI Services - AiServiceExample
+ * 4. 记忆功能 - MemoryChatExample
+ * 5. 工具调用 - ToolCallingExample
