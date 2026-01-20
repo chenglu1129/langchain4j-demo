@@ -59,7 +59,6 @@ public class ChatController {
             return new ChatResponse("Error: " + e.getMessage());
         }
     }
-
     // 请求/响应 DTO
     public static class ChatRequest {
         private String message;
