@@ -33,14 +33,30 @@ public class RagConfiguration {
         return new BgeSmallZhQuantizedEmbeddingModel();
     }
 
+    // 向量数据持久化文件路径
+    private static final String EMBEDDING_STORE_FILE = "data/embedding-store.json";
+
     @Bean
     EmbeddingStore<TextSegment> embeddingStore(EmbeddingModel embeddingModel) throws IOException, URISyntaxException {
-        // 1. 创建内存向量数据库
-        EmbeddingStore<TextSegment> embeddingStore = new InMemoryEmbeddingStore<>();
+        Path storePath = Paths.get(EMBEDDING_STORE_FILE);
 
-        // 2. 加载文档
-        // 这里为了演示简单，直接加载 classpath 下的 documents 目录
-        // 在实际生产中，你可能需要从数据库、S3 或其他位置加载
+        // 1. 检查是否存在已持久化的向量数据
+        if (java.nio.file.Files.exists(storePath)) {
+            System.out.println("从文件加载已有的向量数据: " + storePath.toAbsolutePath());
+            long startTime = System.currentTimeMillis();
+
+            InMemoryEmbeddingStore<TextSegment> embeddingStore = InMemoryEmbeddingStore.fromFile(storePath);
+
+            long duration = System.currentTimeMillis() - startTime;
+            System.out.println("向量数据加载完成，耗时: " + duration + "ms");
+            return embeddingStore;
+        }
+
+        // 2. 如果没有持久化数据，创建新的向量存储
+        System.out.println("未找到已有的向量数据，开始新建...");
+        InMemoryEmbeddingStore<TextSegment> embeddingStore = new InMemoryEmbeddingStore<>();
+
+        // 3. 加载文档
         URL url = RagConfiguration.class.getClassLoader().getResource("documents");
         if (url == null) {
             System.out.println("未找到 documents 目录，跳过知识库加载");
@@ -56,15 +72,15 @@ public class RagConfiguration {
         }
 
         System.out.println("正在从以下路径加载文档: " + documentPath);
+        long startTime = System.currentTimeMillis();
 
         List<Document> documents = FileSystemDocumentLoader.loadDocuments(
                 documentPath,
-                new TextDocumentParser()
-        );
+                new TextDocumentParser());
 
         System.out.println("加载了 " + documents.size() + " 个文档");
 
-        // 3. 将文档切分并存入向量数据库
+        // 4. 将文档切分并存入向量数据库
         EmbeddingStoreIngestor ingestor = EmbeddingStoreIngestor.builder()
                 .documentSplitter(dev.langchain4j.data.document.splitter.DocumentSplitters.recursive(300, 0))
                 .embeddingModel(embeddingModel)
@@ -73,7 +89,13 @@ public class RagConfiguration {
 
         ingestor.ingest(documents);
 
-        System.out.println("文档已向量化并存入内存知识库");
+        long duration = System.currentTimeMillis() - startTime;
+        System.out.println("文档向量化完成，耗时: " + duration + "ms");
+
+        // 5. 持久化向量数据到文件
+        java.nio.file.Files.createDirectories(storePath.getParent());
+        embeddingStore.serializeToFile(storePath);
+        System.out.println("向量数据已持久化到: " + storePath.toAbsolutePath());
 
         return embeddingStore;
     }
