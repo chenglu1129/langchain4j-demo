@@ -13,9 +13,10 @@ import dev.langchain4j.rag.content.retriever.EmbeddingStoreContentRetriever;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.EmbeddingStoreIngestor;
-import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
+import dev.langchain4j.store.embedding.milvus.MilvusEmbeddingStore;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -26,7 +27,8 @@ import java.nio.file.Paths;
 import java.util.List;
 
 @Configuration
-public class RagConfiguration {
+@Profile("milvus") // 仅在 milvus profile 激活时生效
+public class MilvusConfiguration {
 
     @Bean
     EmbeddingModel embeddingModel() {
@@ -35,16 +37,16 @@ public class RagConfiguration {
     }
 
     // 向量数据是否已导入的标记文件
-    private static final String INGESTION_MARKER_FILE = "data/.chroma_ingested";
+    private static final String INGESTION_MARKER_FILE = "data/.milvus_ingested";
 
     @Bean
     EmbeddingStore<TextSegment> embeddingStore(EmbeddingModel embeddingModel) throws IOException, URISyntaxException {
-        // 配置 Chroma 向量数据库连接
-        EmbeddingStore<TextSegment> embeddingStore = ChromaEmbeddingStore.builder()
-                .baseUrl("http://localhost:8000")
-                .collectionName("default")
-                .logRequests(true)
-                .logResponses(true)
+        // 配置 Milvus 向量数据库连接
+        EmbeddingStore<TextSegment> embeddingStore = MilvusEmbeddingStore.builder()
+                .host("localhost")
+                .port(19530)
+                .collectionName("langchain4j_collection")
+                .dimension(512) // BGE-Small-ZH 模型的向量维度
                 .build();
 
         Path markerPath = Paths.get(INGESTION_MARKER_FILE);
@@ -52,15 +54,15 @@ public class RagConfiguration {
         // 1. 检查标记文件，如果存在则跳过导入
         if (Files.exists(markerPath)) {
             System.out.println("检测到标记文件: " + markerPath.toAbsolutePath());
-            System.out.println("假设 Chroma 已包含向量数据，跳过导入。");
+            System.out.println("假设 Milvus 已包含向量数据，跳过导入。");
             return embeddingStore;
         }
 
         // 2. 如果没有标记文件，开始导入数据
-        System.out.println("未找到标记文件，准备导入数据到 Chroma...");
+        System.out.println("未找到标记文件，准备导入数据到 Milvus...");
 
         // 3. 加载文档
-        URL url = RagConfiguration.class.getClassLoader().getResource("documents");
+        URL url = MilvusConfiguration.class.getClassLoader().getResource("documents");
         if (url == null) {
             System.out.println("未找到 documents 目录，跳过知识库加载");
             return embeddingStore;
@@ -93,7 +95,7 @@ public class RagConfiguration {
         ingestor.ingest(documents);
 
         long duration = System.currentTimeMillis() - startTime;
-        System.out.println("文档向量化并导入 Chroma 完成，耗时: " + duration + "ms");
+        System.out.println("文档向量化并导入 Milvus 完成，耗时: " + duration + "ms");
 
         // 5. 创建标记文件
         Files.createDirectories(markerPath.getParent());
@@ -114,14 +116,10 @@ public class RagConfiguration {
                 .build();
     }
 
-    // 定义一个支持 RAG 的 AI 服务接口
-    public interface KnowledgeBaseService {
-        String chat(String userMessage);
-    }
-
     @Bean
-    KnowledgeBaseService knowledgeBaseService(ChatLanguageModel chatLanguageModel, ContentRetriever contentRetriever) {
-        return AiServices.builder(KnowledgeBaseService.class)
+    com.example.langchain4j.service.KnowledgeBaseService knowledgeBaseService(ChatLanguageModel chatLanguageModel,
+            ContentRetriever contentRetriever) {
+        return AiServices.builder(com.example.langchain4j.service.KnowledgeBaseService.class)
                 .chatLanguageModel(chatLanguageModel)
                 .contentRetriever(contentRetriever) // 注入检索器，启用 RAG
                 .chatMemory(MessageWindowChatMemory.withMaxMessages(10))

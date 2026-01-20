@@ -1,6 +1,6 @@
 package com.example.langchain4j.controller;
 
-import com.example.langchain4j.config.RagConfiguration.KnowledgeBaseService;
+import com.example.langchain4j.service.KnowledgeBaseService;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import org.springframework.web.bind.annotation.*;
 
