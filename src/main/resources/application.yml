@@ -2,7 +2,7 @@ spring:
   application:
     name: langchain4j-demo
   profiles:
-    active: milvus  # 可选值: chroma, milvus, elasticsearch, pgvector
+    active: elasticsearch  # 可选值: chroma, milvus, elasticsearch, pgvector
 
 # LangChain4j Ollama 配置
 langchain4j:

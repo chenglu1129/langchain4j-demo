@@ -74,6 +74,13 @@
             <version>0.36.1</version>
         </dependency>
 
+        <!-- Elasticsearch 向量数据库支持 -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-elasticsearch</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+
         <!-- 嵌入模型 (本地运行，无需 Ollama) -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
