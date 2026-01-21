@@ -14,6 +14,7 @@ import dev.langchain4j.service.AiServices;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.EmbeddingStoreIngestor;
 import dev.langchain4j.store.embedding.pgvector.PgVectorEmbeddingStore;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,7 +31,10 @@ import java.util.List;
 @Configuration
 @Profile("pgvector")
 @Slf4j
+@RequiredArgsConstructor
 public class PgVectorConfiguration {
+
+    private final AppProperties appProperties;
 
     @Bean
     EmbeddingModel embeddingModel() {
@@ -41,21 +45,16 @@ public class PgVectorConfiguration {
 
     @Bean
     EmbeddingStore<TextSegment> embeddingStore(EmbeddingModel embeddingModel) throws IOException, URISyntaxException {
-        String host = System.getenv().getOrDefault("PGVECTOR_HOST", "localhost");
-        int port = Integer.parseInt(System.getenv().getOrDefault("PGVECTOR_PORT", "5432"));
-        String database = System.getenv().getOrDefault("PGVECTOR_DB", "postgres");
-        String user = System.getenv().getOrDefault("PGVECTOR_USER", "postgres");
-        String password = System.getenv().getOrDefault("PGVECTOR_PASSWORD", "postgres");
-        String table = System.getenv().getOrDefault("PGVECTOR_TABLE", "langchain4j_embeddings");
+        String table = appProperties.getVectorStore().getCollectionName();
 
         EmbeddingStore<TextSegment> embeddingStore = PgVectorEmbeddingStore.builder()
-                .host(host)
-                .port(port)
-                .database(database)
-                .user(user)
-                .password(password)
+                .host(appProperties.getVectorStore().getPgvector().getHost())
+                .port(appProperties.getVectorStore().getPgvector().getPort())
+                .database(appProperties.getVectorStore().getPgvector().getDatabase())
+                .user(appProperties.getVectorStore().getPgvector().getUser())
+                .password(appProperties.getVectorStore().getPgvector().getPassword())
                 .table(table)
-                .dimension(embeddingModel.dimension())
+                .dimension(appProperties.getEmbedding().getDimension())
                 .useIndex(true)
                 .indexListSize(100)
                 .createTable(true)
@@ -94,7 +93,9 @@ public class PgVectorConfiguration {
         log.info("加载了 {} 个文档", documents.size());
 
         EmbeddingStoreIngestor ingestor = EmbeddingStoreIngestor.builder()
-                .documentSplitter(dev.langchain4j.data.document.splitter.DocumentSplitters.recursive(300, 0))
+                .documentSplitter(dev.langchain4j.data.document.splitter.DocumentSplitters.recursive(
+                        appProperties.getDocument().getMaxSegmentSize(),
+                        appProperties.getDocument().getMaxOverlapSize()))
                 .embeddingModel(embeddingModel)
                 .embeddingStore(embeddingStore)
                 .build();
@@ -116,8 +117,8 @@ public class PgVectorConfiguration {
         return EmbeddingStoreContentRetriever.builder()
                 .embeddingStore(embeddingStore)
                 .embeddingModel(embeddingModel)
-                .maxResults(2)
-                .minScore(0.6)
+                .maxResults(appProperties.getRetriever().getMaxResults())
+                .minScore(appProperties.getRetriever().getMinScore())
                 .build();
     }
 

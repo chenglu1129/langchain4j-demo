@@ -4,6 +4,32 @@ spring:
   profiles:
     active: pgvector  # 可选值: chroma, milvus, elasticsearch, pgvector
 
+# 应用自定义配置
+app:
+  embedding:
+    dimension: 512
+  document:
+    splitter:
+      max-segment-size: 300
+      max-overlap-size: 0
+  retriever:
+    max-results: 2
+    min-score: 0.6
+  vector-store:
+    collection-name: langchain4j_vectors
+    chroma:
+      url: http://localhost:8000
+    elasticsearch:
+      url: http://localhost:9200
+    milvus:
+      url: http://localhost:19530
+    pgvector:
+      host: localhost
+      port: 5432
+      database: postgres
+      user: postgres
+      password: postgres
+
 # LangChain4j Ollama 配置
 langchain4j:
   ollama:

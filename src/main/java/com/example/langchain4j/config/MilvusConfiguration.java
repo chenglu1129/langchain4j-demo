@@ -14,6 +14,7 @@ import dev.langchain4j.service.AiServices;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.EmbeddingStoreIngestor;
 import dev.langchain4j.store.embedding.milvus.MilvusEmbeddingStore;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,7 +31,10 @@ import java.util.List;
 @Configuration
 @Profile("milvus") // 仅在 milvus profile 激活时生效
 @Slf4j
+@RequiredArgsConstructor
 public class MilvusConfiguration {
+
+    private final AppProperties appProperties;
 
     @Bean
     EmbeddingModel embeddingModel() {
@@ -45,9 +49,9 @@ public class MilvusConfiguration {
     EmbeddingStore<TextSegment> embeddingStore(EmbeddingModel embeddingModel) throws IOException, URISyntaxException {
         // 配置 Milvus 向量数据库连接
         EmbeddingStore<TextSegment> embeddingStore = MilvusEmbeddingStore.builder()
-                .uri("http://localhost:19530")
-                .collectionName("langchain4j_vectors")
-                .dimension(512) // BGE-Small-ZH 模型的向量维度
+                .uri(appProperties.getVectorStore().getMilvus().getUrl())
+                .collectionName(appProperties.getVectorStore().getCollectionName())
+                .dimension(appProperties.getEmbedding().getDimension()) // BGE-Small-ZH 模型的向量维度
                 .build();
 
         Path markerPath = Paths.get(INGESTION_MARKER_FILE);
@@ -88,7 +92,9 @@ public class MilvusConfiguration {
 
         // 4. 将文档切分并存入向量数据库
         EmbeddingStoreIngestor ingestor = EmbeddingStoreIngestor.builder()
-                .documentSplitter(dev.langchain4j.data.document.splitter.DocumentSplitters.recursive(300, 0))
+                .documentSplitter(dev.langchain4j.data.document.splitter.DocumentSplitters.recursive(
+                        appProperties.getDocument().getMaxSegmentSize(),
+                        appProperties.getDocument().getMaxOverlapSize()))
                 .embeddingModel(embeddingModel)
                 .embeddingStore(embeddingStore)
                 .build();
@@ -112,8 +118,8 @@ public class MilvusConfiguration {
         return EmbeddingStoreContentRetriever.builder()
                 .embeddingStore(embeddingStore)
                 .embeddingModel(embeddingModel)
-                .maxResults(2)
-                .minScore(0.6)
+                .maxResults(appProperties.getRetriever().getMaxResults())
+                .minScore(appProperties.getRetriever().getMinScore())
                 .build();
     }
 

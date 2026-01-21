@@ -14,6 +14,7 @@ import dev.langchain4j.service.AiServices;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.EmbeddingStoreIngestor;
 import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,7 +31,10 @@ import java.util.List;
 @Configuration
 @Profile("chroma") // 仅在 chroma profile 激活时生效
 @Slf4j
+@RequiredArgsConstructor
 public class ChromaConfiguration {
+
+    private final AppProperties appProperties;
 
     @Bean
     EmbeddingModel embeddingModel() {
@@ -45,8 +49,8 @@ public class ChromaConfiguration {
     EmbeddingStore<TextSegment> embeddingStore(EmbeddingModel embeddingModel) throws IOException, URISyntaxException {
         // 配置 Chroma 向量数据库连接
         EmbeddingStore<TextSegment> embeddingStore = ChromaEmbeddingStore.builder()
-                .baseUrl("http://localhost:8000")
-                .collectionName("langchain4j_vectors")
+                .baseUrl(appProperties.getVectorStore().getChroma().getUrl())
+                .collectionName(appProperties.getVectorStore().getCollectionName())
                 .build();
 
         Path markerPath = Paths.get(INGESTION_MARKER_FILE);
@@ -87,7 +91,9 @@ public class ChromaConfiguration {
 
         // 4. 将文档切分并存入向量数据库
         EmbeddingStoreIngestor ingestor = EmbeddingStoreIngestor.builder()
-                .documentSplitter(dev.langchain4j.data.document.splitter.DocumentSplitters.recursive(300, 0))
+                .documentSplitter(dev.langchain4j.data.document.splitter.DocumentSplitters.recursive(
+                        appProperties.getDocument().getMaxSegmentSize(),
+                        appProperties.getDocument().getMaxOverlapSize()))
                 .embeddingModel(embeddingModel)
                 .embeddingStore(embeddingStore)
                 .build();
@@ -111,8 +117,8 @@ public class ChromaConfiguration {
         return EmbeddingStoreContentRetriever.builder()
                 .embeddingStore(embeddingStore)
                 .embeddingModel(embeddingModel)
-                .maxResults(2)
-                .minScore(0.6)
+                .maxResults(appProperties.getRetriever().getMaxResults())
+                .minScore(appProperties.getRetriever().getMinScore())
                 .build();
     }
 
