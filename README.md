@@ -7,6 +7,16 @@
 - **Spring Boot 3 集成**：基于 Spring Boot 3.2.5 构建。
 - **LangChain4j 0.36.x**：使用最新的 LangChain4j 库。
 - **Ollama 支持**：通过 Ollama 连接本地运行的大模型。
+- **多向量数据库支持**：
+    - **PgVector** (推荐，基于 PostgreSQL)
+    - **Milvus**
+    - **Elasticsearch**
+    - **Chroma**
+- **RAG (检索增强生成)**：
+    - 支持从本地 `src/main/resources/documents` 目录加载文档。
+    - **智能增量更新**：系统启动时自动检测新增文件并导入，避免重复处理。
+- **配置中心化**：通过 `application.yml` 统一管理所有业务参数和数据库连接。
+- **生产级日志**：按等级分类存储，支持按天滚动和文件大小切分。
 - **多种交互模式**：
     - 基础对话 (Basic Chat)
     - 流式响应 (Streaming)
@@ -20,47 +30,72 @@
 
 - **Java**: JDK 17 或更高版本
 - **Maven**: 3.x
-- **Docker**: 用于运行 Ollama（可选，也可以直接安装 Ollama）
+- **Docker**: 用于运行 Ollama 和向量数据库（推荐）
 
 ## 🚀 快速开始
 
-### 1. 准备 Ollama 环境
+### 1. 准备环境 (Ollama + 向量数据库)
 
-本项目依赖 Ollama 提供 LLM 服务。你可以通过 Docker Compose 启动，或者直接在本地安装 Ollama。
+本项目使用 `docker-compose.yml` 编排所有依赖服务，包括 Ollama 和 PostgreSQL (PgVector)。
 
-**方式 A: 使用 Docker Compose (推荐)**
-
-项目根目录下提供了 `docker-compose.yml` 文件，配置了 GPU 支持（需要 NVIDIA Container Toolkit）。
+**启动所有服务**：
 
 ```bash
 docker-compose up -d
 ```
 
-**方式 B: 本地安装**
-
-请访问 [Ollama 官网](https://ollama.com/download) 下载并安装对应系统的版本。
+这将启动：
+- **Ollama**: 本地大模型服务
+- **Postgres (PgVector)**: 向量数据库服务 (端口 5432)
+- **Web UI**: (可选) Open WebUI
 
 ### 2. 下载模型
 
-项目默认配置的模型名称为 `Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf`。你需要确保 Ollama 中有该模型，或者下载其他模型并修改配置。
+项目默认配置的模型名称为 `Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf`。
 
 ```bash
-# 下载通义千问模型 (示例使用 qwen2.5:7b，请根据实际情况调整)
+# 示例：下载通义千问模型
 ollama pull qwen2.5:7b
 ```
 
-**⚠️ 注意**：如果你下载的模型名称不是 `Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf`，请务必修改 `src/main/resources/application.yml` 文件中的 `model-name` 配置：
+**⚠️ 注意**：请务必修改 `src/main/resources/application.yml` 文件中的 `model-name` 配置与你下载的模型一致。
+
+### 3. 配置应用
+
+所有配置均集中在 `src/main/resources/application.yml` 中。
+
+**切换向量数据库**：
+修改 `spring.profiles.active` 属性：
 
 ```yaml
-langchain4j:
-  ollama:
-    chat-model:
-      model-name: Qwen2.5-VL-7B-Instruct-local:latest  # 修改为你下载的模型名称
-    streaming-chat-model:
-      model-name: Qwen2.5-VL-7B-Instruct-local:latest
+spring:
+  profiles:
+    active: pgvector  # 可选值: pgvector, milvus, elasticsearch, chroma
 ```
 
-### 3. 启动应用
+**修改数据库连接与参数**：
+直接在 `application.yml` 的 `app` 节点下修改：
+
+```yaml
+app:
+  embedding:
+    dimension: 512              # 向量维度
+  document:
+    splitter:
+      max-segment-size: 300     # 文档切分大小
+  vector-store:
+    collection-name: langchain4j_vectors
+    pgvector:
+      host: localhost
+      port: 5432
+      database: postgres
+      user: postgres
+      password: postgres
+    milvus:
+      url: http://localhost:19530
+```
+
+### 4. 启动应用
 
 使用 Maven 启动 Spring Boot 应用：
 
@@ -68,7 +103,22 @@ langchain4j:
 mvn spring-boot:run
 ```
 
-应用启动后，默认运行在端口 `8080`。
+应用启动时会自动：
+1. 检查 `src/main/resources/documents` 目录下的文档。
+2. 将文档切分并向量化。
+3. 存入配置的向量数据库中（如果已存在标记文件则跳过）。
+
+## 📝 日志管理
+
+项目配置了生产级日志策略 (`logback-spring.xml`)：
+
+- **日志目录**: `logs/`
+- **INFO 日志**: `logs/info-日期-序号.txt` (包含 INFO/WARN)
+- **ERROR 日志**: `logs/error-日期-序号.txt` (仅包含 ERROR)
+- **滚动策略**:
+    - **按天滚动**: 每天生成新文件
+    - **按大小切分**: 单个文件超过 10MB 自动切分
+    - **保留策略**: 保留最近 30 天，最大占用 3GB
 
 ## 📖 使用指南
 

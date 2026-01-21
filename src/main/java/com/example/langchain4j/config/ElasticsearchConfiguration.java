@@ -19,13 +19,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import com.example.langchain4j.tools.IngestionHelper;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 
 @Configuration
@@ -35,6 +33,7 @@ import java.util.List;
 public class ElasticsearchConfiguration {
 
     private final AppProperties appProperties;
+    private final IngestionHelper ingestionHelper;
 
     @Bean
     EmbeddingModel embeddingModel() {
@@ -42,8 +41,8 @@ public class ElasticsearchConfiguration {
         return new BgeSmallZhQuantizedEmbeddingModel();
     }
 
-    // 向量数据是否已导入的标记文件
-    private static final String INGESTION_MARKER_FILE = "data/.elasticsearch_ingested";
+    private static final String OLD_MARKER_FILE = "data/.elasticsearch_ingested";
+    private static final String STORE_TYPE = "elasticsearch";
 
     @Bean
     EmbeddingStore<TextSegment> embeddingStore(EmbeddingModel embeddingModel) throws IOException, URISyntaxException {
@@ -53,43 +52,22 @@ public class ElasticsearchConfiguration {
                 .indexName(appProperties.getVectorStore().getCollectionName()) // 使用统一的索引名称
                 .build();
 
-        Path markerPath = Paths.get(INGESTION_MARKER_FILE);
+        // 1. 获取需要导入的新文件
+        List<Path> newFiles = ingestionHelper.resolveNewFiles(STORE_TYPE, OLD_MARKER_FILE);
 
-        // 1. 检查标记文件，如果存在则跳过导入
-        if (Files.exists(markerPath)) {
-            log.info("检测到标记文件: {}", markerPath.toAbsolutePath());
-            log.info("假设 Elasticsearch 已包含向量数据，跳过导入。");
+        if (newFiles.isEmpty()) {
             return embeddingStore;
         }
 
-        // 2. 如果没有标记文件，开始导入数据
-        log.info("未找到标记文件，准备导入数据到 Elasticsearch...");
-
-        // 3. 加载文档
-        URL url = ElasticsearchConfiguration.class.getClassLoader().getResource("documents");
-        if (url == null) {
-            log.warn("未找到 documents 目录，跳过知识库加载");
-            return embeddingStore;
-        }
-
-        // 处理 Windows 路径问题
-        Path documentPath;
-        try {
-            documentPath = Paths.get(url.toURI());
-        } catch (URISyntaxException e) {
-            documentPath = Paths.get(url.getPath());
-        }
-
-        log.info("正在从以下路径加载文档: {}", documentPath);
+        // 2. 加载新文件
         long startTime = System.currentTimeMillis();
+        List<Document> documents = newFiles.stream()
+                .map(path -> FileSystemDocumentLoader.loadDocument(path, new TextDocumentParser()))
+                .toList();
 
-        List<Document> documents = FileSystemDocumentLoader.loadDocuments(
-                documentPath,
-                new TextDocumentParser());
+        log.info("加载了 {} 个新文档", documents.size());
 
-        log.info("加载了 {} 个文档", documents.size());
-
-        // 4. 将文档切分并存入向量数据库
+        // 3. 将文档切分并存入向量数据库
         EmbeddingStoreIngestor ingestor = EmbeddingStoreIngestor.builder()
                 .documentSplitter(dev.langchain4j.data.document.splitter.DocumentSplitters.recursive(
                         appProperties.getDocument().getMaxSegmentSize(),
@@ -101,12 +79,10 @@ public class ElasticsearchConfiguration {
         ingestor.ingest(documents);
 
         long duration = System.currentTimeMillis() - startTime;
-        log.info("文档向量化并导入 Elasticsearch 完成，耗时: {}ms", duration);
+        log.info("新文档向量化并导入 Elasticsearch 完成，耗时: {}ms", duration);
 
-        // 5. 创建标记文件
-        Files.createDirectories(markerPath.getParent());
-        Files.createFile(markerPath);
-        log.info("已创建标记文件: {}", markerPath.toAbsolutePath());
+        // 4. 更新清单文件
+        ingestionHelper.updateInventory(STORE_TYPE, newFiles);
 
         return embeddingStore;
     }
