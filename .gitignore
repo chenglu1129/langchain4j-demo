@@ -64,3 +64,4 @@ ollama_data/
 /data/
 /Langchain4j/
 /chroma_data/
+/logs/

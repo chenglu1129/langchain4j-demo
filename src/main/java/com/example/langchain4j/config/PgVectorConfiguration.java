@@ -13,7 +13,7 @@ import dev.langchain4j.rag.content.retriever.EmbeddingStoreContentRetriever;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.EmbeddingStoreIngestor;
-import dev.langchain4j.store.embedding.chroma.ChromaEmbeddingStore;
+import dev.langchain4j.store.embedding.pgvector.PgVectorEmbeddingStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,47 +28,55 @@ import java.nio.file.Paths;
 import java.util.List;
 
 @Configuration
-@Profile("chroma") // 仅在 chroma profile 激活时生效
+@Profile("pgvector")
 @Slf4j
-public class ChromaConfiguration {
+public class PgVectorConfiguration {
 
     @Bean
     EmbeddingModel embeddingModel() {
-        // 使用本地量化的 BGE-Small-ZH 模型，专门针对中文优化，且无需联网
         return new BgeSmallZhQuantizedEmbeddingModel();
     }
 
-    // 向量数据是否已导入的标记文件
-    private static final String INGESTION_MARKER_FILE = "data/.chroma_ingested";
+    private static final String INGESTION_MARKER_FILE = "data/.pgvector_ingested";
 
     @Bean
     EmbeddingStore<TextSegment> embeddingStore(EmbeddingModel embeddingModel) throws IOException, URISyntaxException {
-        // 配置 Chroma 向量数据库连接
-        EmbeddingStore<TextSegment> embeddingStore = ChromaEmbeddingStore.builder()
-                .baseUrl("http://localhost:8000")
-                .collectionName("langchain4j_vectors")
+        String host = System.getenv().getOrDefault("PGVECTOR_HOST", "localhost");
+        int port = Integer.parseInt(System.getenv().getOrDefault("PGVECTOR_PORT", "5432"));
+        String database = System.getenv().getOrDefault("PGVECTOR_DB", "postgres");
+        String user = System.getenv().getOrDefault("PGVECTOR_USER", "postgres");
+        String password = System.getenv().getOrDefault("PGVECTOR_PASSWORD", "postgres");
+        String table = System.getenv().getOrDefault("PGVECTOR_TABLE", "langchain4j_embeddings");
+
+        EmbeddingStore<TextSegment> embeddingStore = PgVectorEmbeddingStore.builder()
+                .host(host)
+                .port(port)
+                .database(database)
+                .user(user)
+                .password(password)
+                .table(table)
+                .dimension(embeddingModel.dimension())
+                .useIndex(true)
+                .indexListSize(100)
+                .createTable(true)
+                .dropTableFirst(false)
                 .build();
 
         Path markerPath = Paths.get(INGESTION_MARKER_FILE);
-
-        // 1. 检查标记文件，如果存在则跳过导入
         if (Files.exists(markerPath)) {
             log.info("检测到标记文件: {}", markerPath.toAbsolutePath());
-            log.info("假设 Chroma 已包含向量数据，跳过导入。");
+            log.info("假设 PGVector 已包含向量数据，跳过导入。");
             return embeddingStore;
         }
 
-        // 2. 如果没有标记文件，开始导入数据
-        log.info("未找到标记文件，准备导入数据到 Chroma...");
+        log.info("未找到标记文件，准备导入数据到 PGVector...");
 
-        // 3. 加载文档
-        URL url = ChromaConfiguration.class.getClassLoader().getResource("documents");
+        URL url = PgVectorConfiguration.class.getClassLoader().getResource("documents");
         if (url == null) {
             log.warn("未找到 documents 目录，跳过知识库加载");
             return embeddingStore;
         }
 
-        // 处理 Windows 路径问题
         Path documentPath;
         try {
             documentPath = Paths.get(url.toURI());
@@ -85,7 +93,6 @@ public class ChromaConfiguration {
 
         log.info("加载了 {} 个文档", documents.size());
 
-        // 4. 将文档切分并存入向量数据库
         EmbeddingStoreIngestor ingestor = EmbeddingStoreIngestor.builder()
                 .documentSplitter(dev.langchain4j.data.document.splitter.DocumentSplitters.recursive(300, 0))
                 .embeddingModel(embeddingModel)
@@ -95,9 +102,8 @@ public class ChromaConfiguration {
         ingestor.ingest(documents);
 
         long duration = System.currentTimeMillis() - startTime;
-        log.info("文档向量化并导入 Chroma 完成，耗时: {}ms", duration);
+        log.info("文档向量化并导入 PGVector 完成，耗时: {}ms", duration);
 
-        // 5. 创建标记文件
         Files.createDirectories(markerPath.getParent());
         Files.createFile(markerPath);
         log.info("已创建标记文件: {}", markerPath.toAbsolutePath());
@@ -107,7 +113,6 @@ public class ChromaConfiguration {
 
     @Bean
     ContentRetriever contentRetriever(EmbeddingStore<TextSegment> embeddingStore, EmbeddingModel embeddingModel) {
-        // 配置检索器：最大返回 2 条结果，相似度阈值 0.6
         return EmbeddingStoreContentRetriever.builder()
                 .embeddingStore(embeddingStore)
                 .embeddingModel(embeddingModel)
@@ -118,10 +123,10 @@ public class ChromaConfiguration {
 
     @Bean
     com.example.langchain4j.service.KnowledgeBaseService knowledgeBaseService(ChatLanguageModel chatLanguageModel,
-            ContentRetriever contentRetriever) {
+                                                                              ContentRetriever contentRetriever) {
         return AiServices.builder(com.example.langchain4j.service.KnowledgeBaseService.class)
                 .chatLanguageModel(chatLanguageModel)
-                .contentRetriever(contentRetriever) // 注入检索器，启用 RAG
+                .contentRetriever(contentRetriever)
                 .chatMemory(MessageWindowChatMemory.withMaxMessages(10))
                 .build();
     }

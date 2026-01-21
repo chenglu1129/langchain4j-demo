@@ -14,6 +14,7 @@ import dev.langchain4j.service.AiServices;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.EmbeddingStoreIngestor;
 import dev.langchain4j.store.embedding.elasticsearch.ElasticsearchEmbeddingStore;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -28,6 +29,7 @@ import java.util.List;
 
 @Configuration
 @Profile("elasticsearch") // 仅在 elasticsearch profile 激活时生效
+@Slf4j
 public class ElasticsearchConfiguration {
 
     @Bean
@@ -52,18 +54,18 @@ public class ElasticsearchConfiguration {
 
         // 1. 检查标记文件，如果存在则跳过导入
         if (Files.exists(markerPath)) {
-            System.out.println("检测到标记文件: " + markerPath.toAbsolutePath());
-            System.out.println("假设 Elasticsearch 已包含向量数据，跳过导入。");
+            log.info("检测到标记文件: {}", markerPath.toAbsolutePath());
+            log.info("假设 Elasticsearch 已包含向量数据，跳过导入。");
             return embeddingStore;
         }
 
         // 2. 如果没有标记文件，开始导入数据
-        System.out.println("未找到标记文件，准备导入数据到 Elasticsearch...");
+        log.info("未找到标记文件，准备导入数据到 Elasticsearch...");
 
         // 3. 加载文档
         URL url = ElasticsearchConfiguration.class.getClassLoader().getResource("documents");
         if (url == null) {
-            System.out.println("未找到 documents 目录，跳过知识库加载");
+            log.warn("未找到 documents 目录，跳过知识库加载");
             return embeddingStore;
         }
 
@@ -75,14 +77,14 @@ public class ElasticsearchConfiguration {
             documentPath = Paths.get(url.getPath());
         }
 
-        System.out.println("正在从以下路径加载文档: " + documentPath);
+        log.info("正在从以下路径加载文档: {}", documentPath);
         long startTime = System.currentTimeMillis();
 
         List<Document> documents = FileSystemDocumentLoader.loadDocuments(
                 documentPath,
                 new TextDocumentParser());
 
-        System.out.println("加载了 " + documents.size() + " 个文档");
+        log.info("加载了 {} 个文档", documents.size());
 
         // 4. 将文档切分并存入向量数据库
         EmbeddingStoreIngestor ingestor = EmbeddingStoreIngestor.builder()
@@ -94,12 +96,12 @@ public class ElasticsearchConfiguration {
         ingestor.ingest(documents);
 
         long duration = System.currentTimeMillis() - startTime;
-        System.out.println("文档向量化并导入 Elasticsearch 完成，耗时: " + duration + "ms");
+        log.info("文档向量化并导入 Elasticsearch 完成，耗时: {}ms", duration);
 
         // 5. 创建标记文件
         Files.createDirectories(markerPath.getParent());
         Files.createFile(markerPath);
-        System.out.println("已创建标记文件: " + markerPath.toAbsolutePath());
+        log.info("已创建标记文件: {}", markerPath.toAbsolutePath());
 
         return embeddingStore;
     }
