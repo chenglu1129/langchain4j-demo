@@ -141,6 +141,24 @@ services:
       timeout: 10s
       retries: 5
 
+  # ========== PostgreSQL + pgvector 相关服务 ==========
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: langchain4j-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   #  ollama_data:
   #    name: ollama_data
@@ -152,3 +170,5 @@ volumes:
     name: milvus_data
   es_data:
     name: elasticsearch_data
+  postgres_data:
+    name: postgres_data

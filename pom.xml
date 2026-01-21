@@ -81,6 +81,19 @@
             <version>${langchain4j.version}</version>
         </dependency>
 
+        <!-- PGVector (PostgreSQL) 向量数据库支持 -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-pgvector</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+        <!-- PostgreSQL JDBC 驱动 -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.3</version>
+        </dependency>
+
         <!-- 嵌入模型 (本地运行，无需 Ollama) -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
