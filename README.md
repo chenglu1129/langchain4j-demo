@@ -36,18 +36,32 @@
 
 ### 1. 准备环境 (Ollama + 向量数据库)
 
-本项目使用 `docker-compose.yml` 编排所有依赖服务，包括 Ollama 和 PostgreSQL (PgVector)。
+### 1. 准备环境 (Ollama + 向量数据库)
 
-**启动所有服务**：
+本项目已将不同向量数据库的 Docker 编排文件拆分，请根据需要选择启动。
 
+**启动 Chroma**：
 ```bash
-docker-compose up -d
+docker-compose -f docker-compose-chroma.yml up -d
 ```
 
-这将启动：
-- **Ollama**: 本地大模型服务
-- **Postgres (PgVector)**: 向量数据库服务 (端口 5432)
-- **Web UI**: (可选) Open WebUI
+**启动 Milvus**：
+```bash
+docker-compose -f docker-compose-milvus.yml up -d
+```
+
+**启动 Elasticsearch**：
+```bash
+docker-compose -f docker-compose-elasticsearch.yml up -d
+```
+
+**启动 PgVector (PostGIS)**：
+```bash
+docker-compose -f docker-compose-pgvector.yml up -d
+```
+
+这将启动对应的向量数据库服务。
+*注意：Ollama 服务默认未包含在这些 Docker Compose 文件中，请确保您已本地安装 Ollama 或单独运行它。*
 
 ### 2. 下载模型
 
